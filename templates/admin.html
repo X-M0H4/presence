@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Admin Présences</title></head>
+<body>
+  <h2>Historique présences (derniers)</h2>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <tr><th>ID</th><th>Nom</th><th>Cours</th><th>Heure (UTC)</th><th>Distance (m)</th><th>Status</th></tr>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r['id'] }}</td>
+        <td>{{ r['name'] }}</td>
+        <td>{{ r['cours'] }}</td>
+        <td>{{ r['timestamp'] }}</td>
+        <td>{{ "%.1f"|format(r['distance']) }}</td>
+        <td>{{ r['status'] }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

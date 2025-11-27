@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Scan présence</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; padding:20px; }
+    .box { max-width:420px; margin:auto; text-align:center; }
+    input, button { font-size:16px; padding:8px; width:100%; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Enregistrement Présence</h2>
+    <p id="message">Récupération de la position...</p>
+
+    <!-- Allow user to enter name (if you have login, use that) -->
+    <input id="name" placeholder="Votre nom complet" />
+    <p><small>Votre position sera envoyée automatiquement pour vérification.</small></p>
+  </div>
+
+<script>
+const cours = new URLSearchParams(window.location.search).get('cours') || 'cours_inconnu';
+const msg = document.getElementById('message');
+
+function sendPresence(lat, lon, name){
+  fetch('/api/presence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, latitude: lat, longitude: lon, cours: cours })
+  })
+  .then(r => r.json().then(j => ({ok: r.ok, j})))
+  .then(obj => {
+    if(obj.ok){
+      msg.innerText = "✅ Présence enregistrée : " + (obj.j.distance_m ? Math.round(obj.j.distance_m) + " m" : "");
+    } else {
+      msg.innerText = "❌ " + (obj.j.message || "Refusé") + " (" + Math.round(obj.j.distance_m || 0) + " m)";
+    }
+  })
+  .catch(err => {
+    msg.innerText = "Erreur réseau : " + err;
+  });
+}
+
+// obtenir le nom si déjà saisi
+const nameInput = document.getElementById('name');
+nameInput.addEventListener('change', () => { /* not needed */ });
+
+function doGeo(){
+  if(!navigator.geolocation){
+    msg.innerText = "Géolocalisation non disponible dans votre navigateur.";
+    return;
+  }
+  msg.innerText = "Demande d'autorisation de localisation...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      msg.innerText = "Position récupérée. Envoi...";
+      const name = (nameInput.value || "").trim();
+      if(!name){
+        msg.innerText = "Entrez votre nom puis attendez l'enregistrement.";
+        // optionally wait for name and then send
+        nameInput.focus();
+        // attach a listener to send automatically once name is filled
+        nameInput.addEventListener('keydown', function onKey(e){
+          if(e.key === 'Enter'){
+            nameInput.removeEventListener('keydown', onKey);
+            sendPresence(lat, lon, nameInput.value.trim());
+          }
+        });
+        return;
+      }
+      // send automatically
+      sendPresence(lat, lon, name);
+    },
+    (error) => {
+      msg.innerText = "Erreur localisation: " + error.message;
+    }, {timeout:10000}
+  );
+}
+
+// Try to auto-send after short delay, allow user to type name first
+setTimeout(doGeo, 800);
+</script>
+</body>
+</html>
