@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Gestion des Membres</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        h2 { color: #333; }
+        .nav { margin-bottom: 20px; }
+        .nav a { margin-right: 15px; color: #007bff; text-decoration: none; }
+        .nav a:hover { text-decoration: underline; }
+        .add-form { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .add-form input { padding: 10px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .add-form button { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .add-form button:hover { background: #218838; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; }
+        .delete-btn { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .delete-btn:hover { background: #c82333; }
+        .count { color: #666; margin-bottom: 10px; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .message.success { background: #d4edda; color: #155724; }
+        .message.error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Accueil</a>
+        <a href="/admin">Historique</a>
+        <a href="/attendance">Feuille de Présence</a>
+        <a href="/roster">Membres</a>
+    </div>
+    
+    <h2>Gestion des Membres</h2>
+    
+    <div class="add-form">
+        <h3>Ajouter un membre</h3>
+        <input type="text" id="name" placeholder="Nom complet" required>
+        <input type="text" id="identifier" placeholder="ID (optionnel)">
+        <button onclick="addStudent()">Ajouter</button>
+    </div>
+    
+    <div id="message"></div>
+    
+    <p class="count">Total: {{ students|length }} membre(s)</p>
+    
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Nom</th>
+            <th>Identifiant</th>
+            <th>Action</th>
+        </tr>
+        {% for s in students %}
+        <tr id="row-{{ s.id }}">
+            <td>{{ s.id }}</td>
+            <td>{{ s.name }}</td>
+            <td>{{ s.identifier or '-' }}</td>
+            <td><button class="delete-btn" onclick="deleteStudent({{ s.id }})">Supprimer</button></td>
+        </tr>
+        {% endfor %}
+        {% if not students %}
+        <tr><td colspan="4" style="text-align:center; color:#666;">Aucun membre enregistré</td></tr>
+        {% endif %}
+    </table>
+
+<script>
+function showMessage(text, type) {
+    const msg = document.getElementById('message');
+    msg.className = 'message ' + type;
+    msg.textContent = text;
+    setTimeout(() => { msg.textContent = ''; msg.className = ''; }, 3000);
+}
+
+function addStudent() {
+    const name = document.getElementById('name').value.trim();
+    const identifier = document.getElementById('identifier').value.trim();
+    
+    if (!name) {
+        showMessage('Veuillez entrer un nom', 'error');
+        return;
+    }
+    
+    fetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, identifier })
+    })
+    .then(r => r.json().then(j => ({ ok: r.ok, data: j })))
+    .then(res => {
+        if (res.ok) {
+            showMessage('Membre ajouté avec succès', 'success');
+            location.reload();
+        } else {
+            showMessage(res.data.message || 'Erreur', 'error');
+        }
+    })
+    .catch(err => showMessage('Erreur réseau', 'error'));
+}
+
+function deleteStudent(id) {
+    if (!confirm('Supprimer ce membre ?')) return;
+    
+    fetch('/api/students/' + id, { method: 'DELETE' })
+    .then(r => {
+        if (r.ok) {
+            document.getElementById('row-' + id).remove();
+            showMessage('Membre supprimé', 'success');
+        }
+    })
+    .catch(err => showMessage('Erreur réseau', 'error'));
+}
+</script>
+</body>
+</html>

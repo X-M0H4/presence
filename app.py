@@ -126,7 +126,9 @@ def index():
             <p>Scannez ce QR code avec votre téléphone pour enregistrer votre présence</p>
             <img src="/static/qr_math1.png" alt="QR Code">
             <div>
-                <a href="/admin">👤 Interface Admin</a>
+                <a href="/admin">📋 Historique</a>
+                <a href="/attendance">✅ Feuille de Présence</a>
+                <a href="/roster">👥 Membres</a>
                 <a href="/scan?cours=math1">📝 Scan Direct</a>
             </div>
         </div>
@@ -211,6 +213,141 @@ def record_presence():
 def serve_static(filename):
     """Servir les fichiers statiques"""
     return send_from_directory('static', filename)
+
+@app.route('/roster')
+def roster():
+    """Page de gestion des membres"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM students ORDER BY name')
+    students = c.fetchall()
+    conn.close()
+    return render_template('roster.html', students=students)
+
+@app.route('/api/students', methods=['POST'])
+def add_student():
+    """Ajouter un étudiant à la liste"""
+    data = request.json
+    if not data:
+        return jsonify({'message': 'Données manquantes'}), 400
+    
+    name = data.get('name', '').strip() if data.get('name') else ''
+    identifier = data.get('identifier', '').strip() if data.get('identifier') else None
+    
+    if not name:
+        return jsonify({'message': 'Nom requis'}), 400
+    
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute('INSERT INTO students (name, identifier) VALUES (?, ?)', (name, identifier))
+        conn.commit()
+        student_id = c.lastrowid
+        conn.close()
+        return jsonify({'message': 'Étudiant ajouté', 'id': student_id}), 201
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'message': 'Cet étudiant existe déjà'}), 409
+
+@app.route('/api/students/<int:student_id>', methods=['DELETE'])
+def delete_student(student_id):
+    """Supprimer un étudiant"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('DELETE FROM students WHERE id = ?', (student_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Étudiant supprimé'}), 200
+
+@app.route('/attendance')
+def attendance():
+    """Page de comparaison présences vs liste des membres"""
+    cours = request.args.get('cours', 'math1')
+    date = request.args.get('date', datetime.utcnow().strftime('%Y-%m-%d'))
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Récupérer tous les étudiants
+    c.execute('SELECT * FROM students ORDER BY name')
+    all_students = c.fetchall()
+    
+    # Récupérer les présences du jour pour ce cours (seulement les acceptées)
+    c.execute('''SELECT DISTINCT name FROM presences 
+                 WHERE cours = ? AND date(timestamp) = ? AND status = 'accepted' ''',
+              (cours, date))
+    present_names = set(row['name'] for row in c.fetchall())
+    
+    # Construire la liste avec statut
+    attendance_list = []
+    for student in all_students:
+        is_present = student['name'] in present_names
+        attendance_list.append({
+            'id': student['id'],
+            'name': student['name'],
+            'identifier': student['identifier'],
+            'status': 'present' if is_present else 'absent'
+        })
+    
+    # Statistiques
+    total = len(all_students)
+    present_count = len([s for s in attendance_list if s['status'] == 'present'])
+    absent_count = total - present_count
+    
+    conn.close()
+    return render_template('attendance.html', 
+                         attendance_list=attendance_list,
+                         cours=cours,
+                         date=date,
+                         total=total,
+                         present_count=present_count,
+                         absent_count=absent_count)
+
+@app.route('/api/attendance/manual', methods=['POST'])
+def manual_attendance():
+    """Marquer manuellement une présence"""
+    data = request.json
+    if not data:
+        return jsonify({'message': 'Données manquantes'}), 400
+    
+    student_id = data.get('student_id')
+    if not student_id:
+        return jsonify({'message': 'ID étudiant requis'}), 400
+    
+    cours = data.get('cours', 'math1')
+    action = data.get('action', 'present')  # 'present' or 'absent'
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Récupérer le nom de l'étudiant
+    c.execute('SELECT name FROM students WHERE id = ?', (student_id,))
+    student = c.fetchone()
+    if not student:
+        conn.close()
+        return jsonify({'message': 'Étudiant non trouvé'}), 404
+    
+    name = student['name']
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    if action == 'present':
+        # Ajouter une présence manuelle
+        timestamp = datetime.utcnow().isoformat()
+        c.execute('''INSERT INTO presences 
+                     (student_id, name, cours, timestamp, latitude, longitude, distance, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                  (student_id, name, cours, timestamp, 0, 0, 0, 'accepted'))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': f'{name} marqué présent'}), 200
+    else:
+        # Supprimer les présences du jour pour cet étudiant
+        c.execute('''DELETE FROM presences 
+                     WHERE student_id = ? AND cours = ? AND date(timestamp) = ?''',
+                  (student_id, cours, today))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': f'{name} marqué absent'}), 200
 
 if __name__ == '__main__':
     # Initialiser la base de données

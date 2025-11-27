@@ -9,16 +9,17 @@ This is a Flask-based attendance tracking system that uses geolocation to verify
 - ✅ Geolocation-based validation
 - ✅ SQLite database for tracking attendance
 - ✅ Admin interface to view attendance history
+- ✅ Member roster management
+- ✅ Attendance comparison (present/absent tracking)
+- ✅ Manual attendance marking
 - ✅ Configured for Replit deployment
 
 ## Recent Changes (November 27, 2025)
-- Completed the Flask application with all routes and API endpoints
-- Added database operations for students and presence tracking
-- Implemented geolocation distance calculation using Haversine formula
-- Configured for Replit environment with proper host settings (0.0.0.0:5000)
-- Set up workflow for development server
-- Added Gunicorn for production deployment
-- Configured autoscale deployment settings
+- Added member roster management page (/roster) to add/remove students
+- Added attendance comparison page (/attendance) showing present/absent status
+- Added manual attendance marking functionality
+- Added input validation for API endpoints
+- Thread-safe database initialization for production deployment
 
 ## Project Architecture
 
@@ -26,16 +27,23 @@ This is a Flask-based attendance tracking system that uses geolocation to verify
 - **app.py**: Main Flask application with routes and business logic
   - `/` - Home page displaying QR code
   - `/scan` - Student presence recording page
-  - `/admin` - Admin interface for viewing attendance
-  - `/api/presence` - REST API endpoint for recording attendance
+  - `/admin` - Admin interface for viewing attendance history
+  - `/roster` - Member roster management (add/remove students)
+  - `/attendance` - Attendance sheet comparing roster vs present students
+  - `/api/presence` - REST API endpoint for recording attendance (via QR scan)
+  - `/api/students` - REST API for adding students
+  - `/api/students/<id>` - REST API for deleting students
+  - `/api/attendance/manual` - REST API for manual attendance marking
   
 ### Database (SQLite)
-- **students** table: Stores student information
+- **students** table: Stores student/member information
 - **presences** table: Records attendance with location data
 
 ### Templates
 - `admin.html` - Admin dashboard showing attendance history
 - `scan.html` - Student-facing page with geolocation capture
+- `roster.html` - Member roster management interface
+- `attendance.html` - Attendance sheet with present/absent comparison
 
 ### Key Configuration
 - Reference coordinates: REF_LAT=48.8566, REF_LON=2.3522 (Paris - to be updated)
@@ -64,3 +72,4 @@ Deploy using Replit's publish feature.
 - The reference coordinates (REF_LAT, REF_LON) should be updated to match the actual classroom location
 - The maximum distance threshold can be adjusted in app.py
 - The application uses UTC timestamps for attendance records
+- For production use with sensitive data, consider adding authentication
